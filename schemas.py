@@ -1,48 +1,66 @@
 """
-Database Schemas
+Database Schemas for Project Camp Backend
 
-Define your MongoDB collection schemas here using Pydantic models.
-These schemas are used for data validation in your application.
+Collections are inferred from Pydantic model class names (lowercased):
+- User -> "user"
+- Project -> "project"
+- Task -> "task"
+- Subtask -> "subtask"
+- Note -> "note"
 
-Each Pydantic model represents a collection in your database.
-Model name is converted to lowercase for the collection name:
-- User -> "user" collection
-- Product -> "product" collection
-- BlogPost -> "blogs" collection
+These are used both for validation and to guide DB operations.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, EmailStr
+from typing import Optional, List, Literal
+from datetime import datetime
 
-# Example schemas (replace with your own):
+# Auth and Users
+Role = Literal["admin", "project_admin", "member"]
 
 class User(BaseModel):
-    """
-    Users collection schema
-    Collection name: "user" (lowercase of class name)
-    """
-    name: str = Field(..., description="Full name")
-    email: str = Field(..., description="Email address")
-    address: str = Field(..., description="Address")
-    age: Optional[int] = Field(None, ge=0, le=120, description="Age in years")
-    is_active: bool = Field(True, description="Whether user is active")
+    email: EmailStr
+    name: str = Field(..., min_length=1, max_length=120)
+    password_hash: str
+    role: Role = "member"
+    is_email_verified: bool = False
+    email_verification_token: Optional[str] = None
+    reset_password_token: Optional[str] = None
+    reset_password_expires_at: Optional[datetime] = None
 
-class Product(BaseModel):
-    """
-    Products collection schema
-    Collection name: "product" (lowercase of class name)
-    """
-    title: str = Field(..., description="Product title")
-    description: Optional[str] = Field(None, description="Product description")
-    price: float = Field(..., ge=0, description="Price in dollars")
-    category: str = Field(..., description="Product category")
-    in_stock: bool = Field(True, description="Whether product is in stock")
+# Projects and Memberships
+class ProjectMember(BaseModel):
+    user_id: str
+    role: Role = "member"
 
-# Add your own schemas here:
-# --------------------------------------------------
+class Project(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=2000)
+    owner_id: str
+    members: List[ProjectMember] = []
 
-# Note: The Flames database viewer will automatically:
-# 1. Read these schemas from GET /schema endpoint
-# 2. Use them for document validation when creating/editing
-# 3. Handle all database operations (CRUD) directly
-# 4. You don't need to create any database endpoints!
+# Tasks, Subtasks, Attachments
+TaskStatus = Literal["todo", "in_progress", "done"]
+
+class Attachment(BaseModel):
+    url: str
+    mime_type: str
+    size: int = Field(..., ge=0)
+
+class Task(BaseModel):
+    project_id: str
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=5000)
+    assignee_id: Optional[str] = None
+    status: TaskStatus = "todo"
+    attachments: List[Attachment] = []
+
+class Subtask(BaseModel):
+    task_id: str
+    details: str = Field(..., min_length=1, max_length=2000)
+    completed: bool = False
+
+# Notes
+class Note(BaseModel):
+    project_id: str
+    content: str = Field(..., min_length=1, max_length=10000)
